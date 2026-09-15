@@ -18,7 +18,8 @@ import java.io.File
 
 object AppUpdater {
     // నీ GitHub యూజర్‌నేమ్ మరియు ఆండ్రాయిడ్ రిపోజిటరీ పేరు
-    private const val GITHUB_REPO = "KSURESH-9644/stealth-assistant-app"
+    //private const val GITHUB_REPO = "KSURESH-9644/stealth-assistant-app"
+    private const val GITHUB_REPO = "KSURESH-9644/stealth-assistant-mobile-app"
     private const val CURRENT_VERSION = "v1.0.0"
 
     fun checkForUpdate(context: Context, onStatusUpdate: (String) -> Unit) {
