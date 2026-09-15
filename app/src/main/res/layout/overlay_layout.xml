@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/overlayContainer"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <!-- 1. మినిమైజ్ అయినప్పుడు కనిపించే చిన్న ఫ్లోటింగ్ బబుల్ ఐకాన్ -->
+    <LinearLayout
+        android:id="@+id/minimizedBubble"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="#CC0284C7"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp" />
+    </LinearLayout>
+
+    <!-- 2. పూర్తి ఫ్లోటింగ్ విండో కార్డ్ -->
+    <LinearLayout
+        android:id="@+id/expandedWindow"
+        android:layout_width="320dp"
+        android:layout_height="280dp"
+        android:background="#E6090D16"
+        android:orientation="vertical"
+        android:padding="10dp"
+        android:visibility="visible">
+
+        <!-- డ్రాగ్ హెడర్ బార్ & కంట్రోల్ బటన్లు -->
+        <LinearLayout
+            android:id="@+id/dragHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🟢 Ready"
+                android:textColor="#22C55E"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <!-- సైజ్ మార్చే టోగుల్ (Small / Medium / Large) -->
+            <TextView
+                android:id="@+id/btnResize"
+                android:layout_width="28dp"
+                android:layout_height="24dp"
+                android:gravity="center"
+                android:text="⤢"
+                android:textColor="#94A3B8"
+                android:textSize="14sp" />
+
+            <!-- మినిమైజ్ / హైడ్ బటన్ -->
+            <TextView
+                android:id="@+id/btnMinimize"
+                android:layout_width="28dp"
+                android:layout_height="24dp"
+                android:gravity="center"
+                android:text="—"
+                android:textColor="#94A3B8"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <!-- క్లోజ్ బటన్ -->
+            <TextView
+                android:id="@+id/btnClose"
+                android:layout_width="28dp"
+                android:layout_height="24dp"
+                android:gravity="center"
+                android:text="✕"
+                android:textColor="#EF4444"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- మోడ్ కంట్రోల్ బటన్లు: ఆటో వాయిస్ vs మాన్యువల్ వాయిస్ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnAutoCapture"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:backgroundTint="#1E293B"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:padding="0dp"
+                android:text="Auto Stream"
+                android:textColor="#94A3B8"
+                android:textSize="10sp" />
+
+            <View
+                android:layout_width="6dp"
+                android:layout_height="match_parent" />
+
+            <Button
+                android:id="@+id/btnManualCapture"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:backgroundTint="#0284C7"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:padding="0dp"
+                android:text="Tap to Record"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <!-- ట్రాన్స్‌క్రిప్షన్ ప్రశ్న లేబుల్ -->
+        <TextView
+            android:id="@+id/tvQuestion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="Awaiting question..."
+            android:textColor="#38BDF8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <!-- స్క్రోలబుల్ ఏఐ రెస్పాన్స్ బాక్స్ -->
+        <ScrollView
+            android:id="@+id/scrollAnswer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="4dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
+
+            <TextView
+                android:id="@+id/tvAnswer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.15"
+                android:text=""
+                android:textColor="#F1F5F9"
+                android:textSize="12sp" />
+        </ScrollView>
+    </LinearLayout>
+
+</FrameLayout>
