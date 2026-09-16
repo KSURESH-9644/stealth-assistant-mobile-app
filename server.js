@@ -15,13 +15,11 @@ const parseModelList = (envVar, defaultList) => {
     return defaultList;
 };
 
-// 1. Whisper Audio Models Fallback
 let WHISPER_CANDIDATES = parseModelList(
     process.env.WHISPER_MODELS, 
     ['whisper-large-v3-turbo', 'whisper-large-v3']
 );
 
-// 2. High-speed LLM Models Fallback
 let LLM_CANDIDATES = parseModelList(
     process.env.GROQ_TEXT_MODELS, 
     [
@@ -32,9 +30,6 @@ let LLM_CANDIDATES = parseModelList(
     ]
 );
 
-/* ============================================================
-   DYNAMIC GROQ MODEL SYNC (Live Discovery & Safe Fallback)
-============================================================ */
 async function syncGroqModels() {
     if (!process.env.GROQ_API_KEY) {
         console.warn('⚠️ GROQ_API_KEY missing. Keeping default model lists.');
@@ -65,8 +60,8 @@ async function syncGroqModels() {
             if (
                 id.includes('guard') || 
                 id.includes('moderation') || 
-                id.includes('vision') ||
-                id.includes('vl') ||
+                id.includes('vision') || 
+                id.includes('vl') || 
                 id.includes('embed')
             ) {
                 continue;
@@ -75,12 +70,8 @@ async function syncGroqModels() {
             textList.push(modelId);
         }
 
-        if (textList.length > 0) {
-            LLM_CANDIDATES = textList;
-        }
-        if (whisperList.length > 0) {
-            WHISPER_CANDIDATES = whisperList;
-        }
+        if (textList.length > 0) LLM_CANDIDATES = textList;
+        if (whisperList.length > 0) WHISPER_CANDIDATES = whisperList;
 
         console.log('✅ Groq Models Synced Successfully:');
         console.log(`🧠 Text Models (${LLM_CANDIDATES.length}):`, LLM_CANDIDATES);
@@ -103,20 +94,23 @@ let candidateProfile = {
 };
 
 function buildSystemPrompt() {
-    return `You are the candidate currently answering interview questions during a live call.
-Always answer in the FIRST PERSON ("I have worked on...", "In my recent project...", "My core expertise is...").
+    const profileSnippet = (candidateProfile.resumeText || candidateProfile.customContext)
+        ? `\nCANDIDATE PROFILE & CONTEXT:
+${candidateProfile.resumeText ? `--- RESUME ---\n${candidateProfile.resumeText}\n` : ''}
+${candidateProfile.customContext ? `--- PRIORITY HIGHLIGHTS ---\n${candidateProfile.customContext}\n` : ''}
+STRICT RULE FOR PROFILE: Use the above profile ONLY when the interviewer asks about personal background, projects, responsibilities, or tools. Never invent companies, years of experience, or technologies not listed above.\n`
+        : '';
 
-CANDIDATE PROFILE & RESUME:
-${candidateProfile.resumeText ? `--- RESUME EXPERIENCE ---\n${candidateProfile.resumeText}\n` : 'Senior Full-Stack Developer.\n'}
-${candidateProfile.customContext ? `--- PRIORITY INSTRUCTIONS & HIGHLIGHTS ---\n${candidateProfile.customContext}\n` : ''}
-
-CRITICAL RULES:
-1. NEVER reveal you are an AI. You ARE the candidate.
-2. Give crisp, direct, and authoritative technical answers suitable for reading quickly on a phone overlay.
-3. Skip introductory pleasantries (Do NOT say "Sure", "Hello", "Thanks for asking"). Jump straight into the technical answer.`;
+    return `You are the candidate in a live technical/HR interview. Start directly with the answer without greetings, pleasantries, or <think> tags.
+${profileSnippet}
+ANSWERING GUIDELINES:
+- IF PERSONAL EXPERIENCE / PROJECTS: Answer in the FIRST PERSON ("In my project...", "I implemented...") strictly based on the candidate profile. If asked about a tool not in your profile, state honestly: "I haven't used it directly in production, but I understand the core concepts."
+- IF CODE / QUERY / ALGORITHM: Provide ONLY clean, production-ready code with minimal inline comments. Mention Time & Space complexity at the top (e.g., // Time: O(N), Space: O(1)).
+- IF CONCEPT / "WHAT IS" / "EXPLAIN": Start with a crisp official definition, followed by 2-3 practical bullet points.
+- IF COMPARISON: Compare directly using practical trade-offs (Performance, Scalability, Use-case).
+- Keep formatting scannable and concise for a phone screen overlay.`;
 }
 
-// STT Execution with Fallback
 async function transcribeWithFallback(filePath) {
     for (const model of WHISPER_CANDIDATES) {
         try {
@@ -126,7 +120,8 @@ async function transcribeWithFallback(filePath) {
                 model: model,
                 response_format: 'json',
                 language: 'en',
-                temperature: 0.0
+                temperature: 0.0,
+                prompt: 'Technical software engineering interview discussion, programming, frameworks, architecture, databases'
             });
             return { text: transcription.text ? transcription.text.trim() : '', model };
         } catch (err) {
@@ -136,7 +131,6 @@ async function transcribeWithFallback(filePath) {
     throw new Error('All STT models failed.');
 }
 
-// LLM Streaming with Fallback
 async function streamCompletionWithFallback(questionText, ws) {
     for (const model of LLM_CANDIDATES) {
         try {
@@ -148,8 +142,8 @@ async function streamCompletionWithFallback(questionText, ws) {
                     { role: 'user', content: questionText }
                 ],
                 stream: true,
-                temperature: 0.2,
-                max_tokens: 500
+                temperature: 0.0,
+                max_tokens: 450
             });
 
             let streamedAnyToken = false;
@@ -157,13 +151,13 @@ async function streamCompletionWithFallback(questionText, ws) {
                 const token = chunk.choices[0]?.delta?.content || '';
                 if (token) {
                     streamedAnyToken = true;
-                    ws.send(JSON.stringify({ type: 'stream-token', text: token }));
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'stream-token', text: token }));
+                    }
                 }
             }
 
-            if (streamedAnyToken) {
-                return model;
-            }
+            if (streamedAnyToken) return model;
         } catch (err) {
             console.warn(`⚠️ [LLM Warning] ${model} failed: ${err.message}. Trying fallback...`);
         }
@@ -178,7 +172,6 @@ wss.on('connection', (ws) => {
         try {
             const data = JSON.parse(message);
 
-            // 1. Handle Context & Base64 PDF parsing
             if (data.type === 'update-context') {
                 let rawInput = data.resumeText || "";
                 let extractedText = "";
@@ -193,10 +186,9 @@ wss.on('connection', (ws) => {
                         console.log('🔄 Decoding Base64 PDF Resume...');
                         const cleanBase64 = rawInput.replace(/^data:application\/pdf;base64,/, '').trim();
                         const pdfBuffer = Buffer.from(cleanBase64, 'base64');
-
                         const pdfData = await pdfParse(pdfBuffer);
                         extractedText = pdfData.text.replace(/\s+/g, ' ').trim();
-                        console.log(`✅ PDF parsed successfully! Characters extracted: ${extractedText.length}`);
+                        console.log(`✅ PDF parsed successfully! Characters: ${extractedText.length}`);
                     } catch (pdfErr) {
                         console.error('❌ PDF Parse Error:', pdfErr.message);
                         extractedText = ""; 
@@ -207,22 +199,22 @@ wss.on('connection', (ws) => {
 
                 candidateProfile.resumeText = extractedText;
                 candidateProfile.customContext = data.customContext || "";
-
                 console.log(`📄 Candidate Profile Updated. Total Resume Length: ${candidateProfile.resumeText.length}`);
 
-                ws.send(JSON.stringify({
-                    type: 'status',
-                    message: `Context loaded: ${candidateProfile.resumeText.length} chars`
-                }));
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'status',
+                        message: `Context loaded: ${candidateProfile.resumeText.length} chars`
+                    }));
+                }
                 return;
             }
 
-            // 2. Audio Processing (WAV input from Mobile)
             if (data.type === 'process-audio') {
                 const startTime = Date.now();
                 const buffer = Buffer.from(data.data, 'base64');
                 const ext = data.format === 'wav' ? 'wav' : 'm4a';
-                const tempFilePath = path.join(__dirname, `temp_${Date.now()}.${ext}`);
+                const tempFilePath = path.join(__dirname, `temp_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`);
 
                 fs.writeFileSync(tempFilePath, buffer);
 
@@ -232,39 +224,42 @@ wss.on('connection', (ws) => {
                     console.log(`🎙️ Question Detected [${sttResult.model}]: "${questionText}"`);
 
                     if (!questionText || questionText.length < 3) {
-                        ws.send(JSON.stringify({ type: 'stream-end', duration: 'No speech' }));
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'stream-end', duration: 'No speech' }));
+                        }
                         return;
                     }
 
-                    // Send detected question to overlay
-                    ws.send(JSON.stringify({ type: 'question', text: questionText }));
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'question', text: questionText }));
+                    }
 
-                    // Stream LLM answer
                     const usedModel = await streamCompletionWithFallback(questionText, ws);
                     const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-                    ws.send(JSON.stringify({ 
-                        type: 'stream-end', 
-                        duration: `${elapsedSec}s (${usedModel})` 
-                    }));
-
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ 
+                            type: 'stream-end', 
+                            duration: `${elapsedSec}s (${usedModel})` 
+                        }));
+                    }
                 } catch (apiErr) {
                     console.error('❌ Pipeline Error:', apiErr.message);
-                    ws.send(JSON.stringify({
-                        type: 'stream-token',
-                        text: `\n[Error: ${apiErr.message}]`
-                    }));
-                    ws.send(JSON.stringify({ type: 'stream-end', duration: 'Failed' }));
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'stream-token',
+                            text: `\n[Error: ${apiErr.message}]`
+                        }));
+                        ws.send(JSON.stringify({ type: 'stream-end', duration: 'Failed' }));
+                    }
                 } finally {
                     try {
-                        if (fs.existsSync(tempFilePath)) {
-                            fs.unlinkSync(tempFilePath);
-                        }
+                        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
                     } catch (_) {}
                 }
             }
         } catch (err) {
-            console.error('❌ WebSocket Message Error:', err.message);
+            console.error('❌ WebSocket Error:', err.message);
         }
     });
 
@@ -277,8 +272,6 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
     console.log(`🚀 Stealth Mobile Backend running on port ${PORT}`);
     await syncGroqModels();
-
-    // Auto re-sync Groq models every 12 hours
     setInterval(async () => {
         await syncGroqModels();
     }, 12 * 60 * 60 * 1000);
