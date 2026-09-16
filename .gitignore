@@ -13,3 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+.env
+node_modules/
+temp_audio.*
+*.apk
+.gradle/
+build/
